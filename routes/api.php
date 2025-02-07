@@ -18,6 +18,6 @@ Route::group(["prefix" => "auth"], function () {
     Route::controller(AuthController::class)->group(function () {
         Route::post('/signin', 'signin');
         Route::post('/register', 'register');
-        Route::get('/signout', 'signout');
+        Route::get('/signout', 'signout')->middleware('auth:api');
     });
 });
