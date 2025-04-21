@@ -5,75 +5,66 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
     public function register(Request $request){
-        $validator = Validator::make($request->all(),
-        [
-            'name' => 'required',
+        $request->validate([
+            'name' => 'required|string|max:20',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:8|confirmed',
         ]);
-        if($validator->fails())
-        {
-            $returnMessage = "";
-            foreach($validator->errors()->toArray() as $key => $errorMessages){
-                foreach($errorMessages as $errorMessage){
-                    $returnMessage .= $errorMessage;
-                    $returnMessage .= "\n";
-                }
-        }
-        return response()->json([
-            'message' => $returnMessage,
-        ],401);
-    }
-    $input = $request->only(['name','email','password']);
-    $input['password'] = Hash::make($input['password']);
-    $user = User::create($input);
 
-    $token = $user->createToken('appToken')->accessToken;
-    return response()->json([
-        'token' => $token,
-        'user' => $user,
-    ],200);
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        // プロフィール情報の初期化
+        $user->profile()->create([
+            'twitter_url' => null,
+            'github_url' => null,
+            'profile_image' => 'default.png',
+        ]);
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token
+        ], 201);
 }
 public function signin(Request $request)
 {
-    $email = $request->input("email");
-    $password = $request->input("password");
+    $request->validate([
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
 
-    if(Auth::attempt(["email"=> $email,"password"=> $password]))
-    {
-        $user = Auth::user();
-        $token = $user->createToken('appToken')->accessToken;
-        return response()->json([
-            'token' => $token,
-            'user' => $user,
-        ],200);
+    if (!Auth::attempt($request->only('email', 'password'))) {
+        throw ValidationException::withMessages([
+            'email' => ['認証情報が記録と一致しません。'],
+        ]);
     }
-    else
-    {
-        return response()->json([
-            'message' => 'Invalid email or password',
-        ],401);
-    }
+
+    $user = $request->user();
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'user' => $user,
+        'token' => $token
+    ]);
 }
 public function signout(Request $request)
 {
-    if(Auth::check())
-    {
-        $token = Auth::user()->token();
-        $token->revoke();
-        return response()->json([],200);
-    }
-    else
-    {
-        return response()->json([
-            'message' => 'User not signed in',
-        ],401);
-    }
+    $request->user()->currentAccessToken()->delete();
+    return response()->json(['message' => 'ログアウトしました']);
+}
+public function user(Request $request)
+{
+    $user = $request->user()->load('profile');
+    return response()->json($user);
 }
 }

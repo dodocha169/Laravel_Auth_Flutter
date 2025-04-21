@@ -14,10 +14,13 @@ use App\Http\Controllers\AuthController;
 |
 */
 
-Route::group(["prefix" => "auth"], function () {
-    Route::controller(AuthController::class)->group(function () {
-        Route::post('/signin', 'signin');
-        Route::post('/register', 'register');
-        Route::get('/signout', 'signout')->middleware('auth:api');
-    });
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/signin', [AuthController::class, 'signin']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/signout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'user']);
+
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::post('/profile', [ProfileController::class, 'update']);
 });
